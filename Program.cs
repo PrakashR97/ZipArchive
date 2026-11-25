@@ -1,87 +1,48 @@
 
+
 public void Main()
 {
-    bool fireAgain = false;
-
     try
     {
-        // 1. Read SSIS variables
-        string zipPath =
-            Dts.Variables["User::ZipFilePath"].Value.ToString();
+        string root =
+            Dts.Variables["User::CsvRootFolder"]
+               .Value.ToString();
 
-        string archiveRoot =
-            Dts.Variables["User::ZipArchiveRoot"].Value.ToString();
-
-        string monthFolder =
-            Dts.Variables["User::MonthFolder"].Value.ToString();
-
-        // 2. Validate month folder (YYYYMM)
-        if (!System.Text.RegularExpressions.Regex.IsMatch(
-            monthFolder, @"^\d{6}$"))
+        if (!System.IO.Directory.Exists(root))
         {
-            throw new System.Exception(
-                "Invalid month folder: " + monthFolder);
+            throw new System.IO.DirectoryNotFoundException(
+                "CSV folder not found: " + root);
         }
 
-        // 3. Dynamically create ZIP archive month folder
-        string archiveMonthPath =
-            System.IO.Path.Combine(
-                archiveRoot, monthFolder);
+        System.Data.DataTable folderTable =
+            new System.Data.DataTable();
 
-        System.IO.Directory.CreateDirectory(
-            archiveMonthPath);
+        folderTable.Columns.Add(
+            "FolderPath",
+            typeof(string));
 
-        // 4. Get original ZIP filename
-        string zipFileName =
-            System.IO.Path.GetFileName(zipPath);
+        string[] folders =
+            System.IO.Directory.GetDirectories(root);
 
-        string archiveFilePath =
-            System.IO.Path.Combine(
-                archiveMonthPath, zipFileName);
-
-        // 5. Prevent overwriting existing ZIP
-        if (System.IO.File.Exists(archiveFilePath))
+        foreach (string folder in folders)
         {
-            throw new System.IO.IOException(
-                "ZIP already exists in archive: " +
-                archiveFilePath);
+            folderTable.Rows.Add(folder);
         }
 
-        // 6. Verify source ZIP exists
-        if (!System.IO.File.Exists(zipPath))
-        {
-            throw new System.IO.FileNotFoundException(
-                "Original ZIP not found: " + zipPath);
-        }
+        Dts.Variables["User::ArchiveFolderList"].Value =
+            folderTable;
 
-        // 7. Move original ZIP to archive
-        System.IO.File.Move(
-            zipPath,
-            archiveFilePath);
-
-        // 8. Log success
-        Dts.Events.FireInformation(
-            0,
-            "ZIP Archive",
-            "Successfully archived ZIP: " +
-            archiveFilePath,
-            "",
-            0,
-            ref fireAgain);
-
-        Dts.TaskResult =
-            (int)ScriptResults.Success;
+        Dts.TaskResult = (int)ScriptResults.Success;
     }
     catch (System.Exception ex)
     {
         Dts.Events.FireError(
             0,
-            "ZIP Archive",
+            "CSV Archive Folder List",
             ex.ToString(),
             "",
             0);
 
-        Dts.TaskResult =
-            (int)ScriptResults.Failure;
+        Dts.TaskResult = (int)ScriptResults.Failure;
     }
 }
