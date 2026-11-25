@@ -77,3 +77,105 @@ END AS CAN_ARCHIVE
 FROM DUAL
 
 
+
+
+
+
+public void Main()
+{
+    bool fireAgain = false;
+
+    try
+    {
+        // 1. Read SSIS variables
+        string sourceFolder =
+            Dts.Variables["User::ArchiveFolderPath"]
+               .Value.ToString();
+
+        string archiveRoot =
+            Dts.Variables["User::CsvArchiveRoot"]
+               .Value.ToString();
+
+        string folderName =
+            Dts.Variables["User::ArchiveFolderName"]
+               .Value.ToString();
+
+        sourceFolder = sourceFolder.TrimEnd(
+            System.IO.Path.DirectorySeparatorChar,
+            System.IO.Path.AltDirectorySeparatorChar);
+
+        // 2. Validate source folder
+        if (!System.IO.Directory.Exists(sourceFolder))
+        {
+            throw new System.IO.DirectoryNotFoundException(
+                "Source folder not found: " + sourceFolder);
+        }
+
+        // 3. Get processing month from parent directory
+        string monthFolder =
+            System.IO.Directory.GetParent(sourceFolder).Name;
+
+        if (!System.Text.RegularExpressions.Regex.IsMatch(
+            monthFolder, @"^\d{6}$"))
+        {
+            throw new System.Exception(
+                "Invalid processing month: " + monthFolder);
+        }
+
+        // 4. Create archive month directory
+        string archiveMonthPath =
+            System.IO.Path.Combine(
+                archiveRoot,
+                monthFolder);
+
+        System.IO.Directory.CreateDirectory(
+            archiveMonthPath);
+
+        // 5. Build archive destination
+        string destinationFolder =
+            System.IO.Path.Combine(
+                archiveMonthPath,
+                folderName);
+
+        // 6. Prevent overwriting existing folders
+        if (System.IO.Directory.Exists(destinationFolder))
+        {
+            throw new System.IO.IOException(
+                "Archive folder already exists: " +
+                destinationFolder);
+        }
+
+        // 7. Move entire extracted folder
+        System.IO.Directory.Move(
+            sourceFolder,
+            destinationFolder);
+
+        // 8. Log archive success
+        Dts.Events.FireInformation(
+            0,
+            "CSV Folder Archive",
+            "Successfully archived: " +
+            sourceFolder + " -> " + destinationFolder,
+            "",
+            0,
+            ref fireAgain);
+
+        Dts.TaskResult =
+            (int)ScriptResults.Success;
+    }
+    catch (System.Exception ex)
+    {
+        Dts.Events.FireError(
+            0,
+            "CSV Folder Archive",
+            ex.ToString(),
+            "",
+            0);
+
+        Dts.TaskResult =
+            (int)ScriptResults.Failure;
+    }
+}
+
+
+
