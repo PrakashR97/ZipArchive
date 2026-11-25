@@ -46,3 +46,34 @@ public void Main()
         Dts.TaskResult = (int)ScriptResults.Failure;
     }
 }
+
+
+
+SELECT CASE
+    WHEN EXISTS (
+        SELECT 1
+        FROM FR_SANDBOX.CSV_LOAD_LOG
+        WHERE SOURCE_FOLDER_NAME = ?
+          AND STATUS = 'SUCCESS'
+    )
+    AND NOT EXISTS (
+        SELECT 1
+        FROM FR_SANDBOX.CSV_LOAD_LOG
+        WHERE SOURCE_FOLDER_NAME = ?
+          AND STATUS IN ('PROCESSING', 'FAILED')
+          AND NOT EXISTS (
+              SELECT 1
+              FROM FR_SANDBOX.CSV_LOAD_LOG S
+              WHERE S.SOURCE_FOLDER_NAME =
+                    CSV_LOAD_LOG.SOURCE_FOLDER_NAME
+                AND S.CSV_FILE_NAME =
+                    CSV_LOAD_LOG.CSV_FILE_NAME
+                AND S.STATUS = 'SUCCESS'
+          )
+    )
+    THEN 1
+    ELSE 0
+END AS CAN_ARCHIVE
+FROM DUAL
+
+
